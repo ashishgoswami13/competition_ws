@@ -1,0 +1,25 @@
+{
+  "configurations": [
+    {
+      "browse": {
+        "databaseFilename": "${default}",
+        "limitSymbolsToIncludedHeaders": false
+      },
+      "includePath": [
+        "/home/admin1/ros2_ws/install/v4l2_camera/include/**",
+        "/home/admin1/ros2_ws/install/ros2_aruco_interfaces/include/**",
+        "/home/admin1/ros2_ws/install/aruco_msgs/include/**",
+        "/home/admin1/dev_ws/install/lidarbot_bringup/include/**",
+        "/home/admin1/dev_ws/install/lidarbot_base/include/**",
+        "/opt/ros/humble/include/**",
+        "/usr/include/**"
+      ],
+      "name": "ROS",
+      "intelliSenseMode": "gcc-x64",
+      "compilerPath": "/usr/bin/gcc",
+      "cStandard": "gnu11",
+      "cppStandard": "c++14"
+    }
+  ],
+  "version": 4
+}

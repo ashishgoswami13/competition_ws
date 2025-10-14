@@ -1,0 +1,16 @@
+{
+    "ros.distro": "humble",
+    "python.autoComplete.extraPaths": [
+        "/home/admin1/ros2_ws/install/tortoisebot_firmware/local/lib/python3.10/dist-packages",
+        "/home/admin1/ros2_ws/install/tortoisebot_control/lib/python3.10/site-packages",
+        "/home/admin1/ros2_ws/install/ros2_aruco_interfaces/local/lib/python3.10/dist-packages",
+        "/home/admin1/ros2_ws/install/ros2_aruco/lib/python3.10/site-packages",
+        "/home/admin1/ros2_ws/install/my_custom_bot/lib/python3.10/site-packages",
+        "/home/admin1/ros2_ws/install/gazebo_worlds/lib/python3.10/site-packages",
+        "/home/admin1/ros2_ws/install/aruco_msgs/local/lib/python3.10/dist-packages",
+        "/home/admin1/dev_ws/install/lidarbot_navigation/local/lib/python3.10/dist-packages",
+        "/home/admin1/dev_ws/install/lidarbot_aruco/lib/python3.10/site-packages",
+        "/opt/ros/humble/lib/python3.10/site-packages",
+        "/opt/ros/humble/local/lib/python3.10/dist-packages"
+    ]
+}
