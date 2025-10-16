@@ -1,0 +1,37 @@
+<?xml version="1.0"?>
+<launch>
+    <!-- Testing launch file: Uses simulated camera without Gazebo -->
+    <!-- Useful for algorithm development and debugging -->
+    
+    <!-- Test camera parameters -->
+    <arg name="camera_width" default="640"/>
+    <arg name="camera_height" default="480"/>
+    <arg name="camera_rate" default="30"/>
+    <arg name="line_motion" default="true"/>
+    
+    <!-- Start simulated camera -->
+    <node name="simple_camera_publisher" pkg="ainex_line_follower" 
+          type="simple_camera_publisher.py" output="screen">
+        <param name="width" value="$(arg camera_width)"/>
+        <param name="height" value="$(arg camera_height)"/>
+        <param name="rate" value="$(arg camera_rate)"/>
+        <param name="line_motion" value="$(arg line_motion)"/>
+        <param name="line_width" value="40"/>
+        <param name="motion_range" value="200"/>
+    </node>
+    
+    <!-- Line follower node -->
+    <node name="line_follower" pkg="ainex_line_follower" 
+          type="line_follower_node.py" output="screen">
+        <param name="image_topic" value="/camera/rgb/image_raw"/>
+        <param name="control_rate" value="10"/>
+        <rosparam file="$(find ainex_line_follower)/config/line_follower_params.yaml" command="load"/>
+    </node>
+    
+    <!-- Optional: Automatically open debug image viewer -->
+    <!-- Uncomment to enable -->
+    <!-- <node name="debug_image_viewer" pkg="image_view" type="image_view" respawn="false">
+        <remap from="image" to="/line_follower/debug_image"/>
+    </node> -->
+    
+</launch>

@@ -1,0 +1,51 @@
+<?xml version="1.0"?>
+<launch>
+    <!-- Set environment variables for software rendering and Qt -->
+    <env name="LIBGL_ALWAYS_SOFTWARE" value="1"/>
+    <env name="QT_QPA_PLATFORM" value="xcb"/>
+    
+    <!-- Set GAZEBO_MODEL_PATH -->
+    <env name="GAZEBO_MODEL_PATH" value="$(find gazebo_world)/models"/>
+
+    <!-- Launch arguments -->
+    <arg name="paused"          default="false"/>
+    <arg name="use_sim_time"    default="true"/>
+    <arg name="gui"             default="true"/>
+    <arg name="headless"        default="false"/>
+    <arg name="debug"           default="false"/>
+    <arg name="verbose"         default="true"/>
+    
+    <!-- Robot spawn position -->
+    <arg name="x"               default="0"/>
+    <arg name="y"               default="0"/>
+    <arg name="z"               default="0.24"/>
+
+    <!-- Set use_sim_time parameter -->
+    <param name="/use_sim_time" value="$(arg use_sim_time)"/>
+
+    <!-- Launch Gazebo with line_follower world -->
+    <include file="$(find gazebo_ros)/launch/empty_world.launch">
+        <arg name="world_name"      value="$(find gazebo_world)/worlds/line_follower.world"/>
+        <arg name="paused"          value="$(arg paused)"/>
+        <arg name="use_sim_time"    value="$(arg use_sim_time)"/>
+        <arg name="gui"             value="$(arg gui)"/>
+        <arg name="headless"        value="$(arg headless)"/>
+        <arg name="debug"           value="$(arg debug)"/>
+        <arg name="verbose"         value="$(arg verbose)"/>
+    </include>
+
+    <!-- Load robot description -->
+    <param name="robot_description" command="$(find xacro)/xacro '$(find ainex_description)/urdf/ainex.xacro'" />
+
+    <!-- Spawn robot model in Gazebo -->
+    <node name="urdf_spawner" pkg="gazebo_ros" type="spawn_model" 
+          args="-urdf -param robot_description -model ainex
+                -x $(arg x) -y $(arg y) -z $(arg z) 
+                -J l_sho_roll -1.403 -J l_el_yaw -1.226 
+                -J r_sho_roll 1.403 -J r_el_yaw 1.226" 
+          respawn="false" output="screen" />
+
+    <!-- Load position controller -->
+    <include file="$(find ainex_gazebo)/launch/position_controller.launch"/>
+
+</launch>
