@@ -23,7 +23,7 @@
     <!-- Line follower node -->
     <node name="line_follower" pkg="ainex_line_follower" 
           type="line_follower_node.py" output="screen">
-        <param name="image_topic" value="/camera/rgb/image_raw"/>
+        <param name="image_topic" value="/camera/image_raw"/>
         <param name="control_rate" value="10"/>
         <rosparam file="$(find ainex_line_follower)/config/line_follower_params.yaml" command="load"/>
     </node>

@@ -15,10 +15,13 @@
     <arg name="debug"           default="false"/>
     <arg name="verbose"         default="true"/>
     
-    <!-- Robot spawn position -->
+    <!-- Robot spawn position and orientation -->
     <arg name="x"               default="0"/>
     <arg name="y"               default="0"/>
     <arg name="z"               default="0.24"/>
+    <arg name="roll"            default="0"/>
+    <arg name="pitch"           default="0"/>
+    <arg name="yaw"             default="0"/>
 
     <!-- Set use_sim_time parameter -->
     <param name="/use_sim_time" value="$(arg use_sim_time)"/>
@@ -41,6 +44,7 @@
     <node name="urdf_spawner" pkg="gazebo_ros" type="spawn_model" 
           args="-urdf -param robot_description -model ainex
                 -x $(arg x) -y $(arg y) -z $(arg z) 
+                -R $(arg roll) -P $(arg pitch) -Y $(arg yaw)
                 -J l_sho_roll -1.403 -J l_el_yaw -1.226 
                 -J r_sho_roll 1.403 -J r_el_yaw 1.226" 
           respawn="false" output="screen" />
@@ -50,7 +54,7 @@
 
     <!-- Line follower node -->
     <node name="line_follower" pkg="ainex_line_follower" type="line_follower_node.py" output="screen">
-        <param name="image_topic" value="/camera/rgb/image_raw"/>
+        <param name="image_topic" value="/camera/image_raw"/>
         <param name="control_rate" value="10"/>
         <rosparam file="$(find ainex_line_follower)/config/line_follower_params.yaml" command="load"/>
     </node>

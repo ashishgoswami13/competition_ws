@@ -9,10 +9,62 @@ Adapted from the real-world visual_patrol_node.py for simulation use.
 import rospy
 import cv2
 import numpy as np
-from cv_bridge import CvBridge, CvBridgeError
 from sensor_msgs.msg import Image
 from std_msgs.msg import Float64, Bool
 import math
+
+# Manual image conversion to avoid cv_bridge Python 2/3 issues
+def imgmsg_to_cv2(img_msg):
+    """
+    Convert ROS Image message to OpenCV image (numpy array).
+    Handles RGB8 and BGR8 encodings manually to avoid cv_bridge issues.
+    """
+    if img_msg.encoding == "rgb8" or img_msg.encoding == "bgr8":
+        dtype = np.uint8
+        n_channels = 3
+    elif img_msg.encoding == "mono8":
+        dtype = np.uint8
+        n_channels = 1
+    else:
+        rospy.logerr("Unsupported encoding: {}".format(img_msg.encoding))
+        return None
+    
+    # Convert image data bytes to numpy array
+    # img_msg.data is a list/bytes, convert to numpy array properly
+    img_buf = np.frombuffer(img_msg.data, dtype=dtype)
+    
+    if n_channels == 1:
+        cv_image = img_buf.reshape(img_msg.height, img_msg.width)
+    else:
+        cv_image = img_buf.reshape(img_msg.height, img_msg.width, n_channels)
+    
+    # If RGB, convert to BGR for OpenCV
+    if img_msg.encoding == "rgb8":
+        cv_image = cv2.cvtColor(cv_image, cv2.COLOR_RGB2BGR)
+    
+    return cv_image
+
+def cv2_to_imgmsg(cv_image, encoding="bgr8"):
+    """
+    Convert OpenCV image (numpy array) to ROS Image message.
+    """
+    img_msg = Image()
+    img_msg.height = cv_image.shape[0]
+    img_msg.width = cv_image.shape[1]
+    img_msg.encoding = encoding
+    img_msg.is_bigendian = 0
+    
+    if len(cv_image.shape) == 2:
+        # Grayscale
+        img_msg.step = img_msg.width
+        n_channels = 1
+    else:
+        # Color
+        n_channels = cv_image.shape[2]
+        img_msg.step = img_msg.width * n_channels
+    
+    img_msg.data = cv_image.tobytes()
+    return img_msg
 
 
 class LineFollowerController:
@@ -88,9 +140,6 @@ class LineFollowerNode:
         rospy.init_node('line_follower_node', anonymous=False)
         rospy.loginfo("Initializing Line Follower Node for Simulation")
         
-        # Initialize CV Bridge
-        self.bridge = CvBridge()
-        
         # Line detection parameters
         self.image_process_size = rospy.get_param('~image_process_size', [160, 120])
         self.line_roi = rospy.get_param('~line_roi', [
@@ -115,7 +164,7 @@ class LineFollowerNode:
         self._setup_joint_publishers()
         
         # Subscribers
-        image_topic = rospy.get_param('~image_topic', '/camera/rgb/image_raw')
+        image_topic = rospy.get_param('~image_topic', '/camera/image_raw')
         self.image_sub = rospy.Subscriber(image_topic, Image, self.image_callback, queue_size=1)
         
         # Publishers
@@ -136,7 +185,8 @@ class LineFollowerNode:
         joints = [
             'l_hip_yaw', 'l_hip_roll', 'l_hip_pitch', 'l_knee', 'l_ank_pitch', 'l_ank_roll',
             'r_hip_yaw', 'r_hip_roll', 'r_hip_pitch', 'r_knee', 'r_ank_pitch', 'r_ank_roll',
-            'l_sho_pitch', 'r_sho_pitch'
+            'l_sho_pitch', 'r_sho_pitch',
+            'head_pan', 'head_tilt'
         ]
         
         for joint in joints:
@@ -164,6 +214,8 @@ class LineFollowerNode:
             'r_ank_roll': 0.0,
             'l_sho_pitch': 0.0,
             'r_sho_pitch': 0.0,
+            'head_pan': 0.0,
+            'head_tilt': 0.5,  # Tilt down slightly to look at the ground
         }
         
         for joint, position in init_positions.items():
@@ -176,10 +228,12 @@ class LineFollowerNode:
     def image_callback(self, msg):
         """Process incoming camera images to detect the line."""
         try:
-            # Convert ROS Image message to OpenCV image
-            cv_image = self.bridge.imgmsg_to_cv2(msg, "bgr8")
-        except CvBridgeError as e:
-            rospy.logerr("CV Bridge Error: {}".format(e))
+            # Convert ROS Image message to OpenCV image (manual conversion)
+            cv_image = imgmsg_to_cv2(msg)
+            if cv_image is None:
+                return
+        except Exception as e:
+            rospy.logerr("Image conversion error: {}".format(e))
             return
         
         # Resize image for processing
@@ -197,10 +251,12 @@ class LineFollowerNode:
         # Publish debug image
         if self.debug_image_pub.get_num_connections() > 0:
             try:
-                debug_msg = self.bridge.cv2_to_imgmsg(debug_image, "bgr8")
+                debug_msg = cv2_to_imgmsg(debug_image, "bgr8")
+                debug_msg.header.stamp = rospy.Time.now()
+                debug_msg.header.frame_id = "camera_link"
                 self.debug_image_pub.publish(debug_msg)
-            except CvBridgeError as e:
-                rospy.logerr("CV Bridge Error in debug: {}".format(e))
+            except Exception as e:
+                rospy.logerr("Debug image publish error: {}".format(e))
         
         # Publish detection status
         self.line_detected_pub.publish(Bool(line_detected))
