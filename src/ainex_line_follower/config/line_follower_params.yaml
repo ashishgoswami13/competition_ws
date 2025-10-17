@@ -4,28 +4,18 @@
 image_process_size: [160, 120]  # Width x Height for processing
 
 # ROI (Region of Interest) for line detection
-# Each ROI is defined as [y_min, y_max, x_min, x_max] in normalized coordinates (0.0 to 1.0)
+# Single ROI in lower portion of image: [y_min, y_max, x_min, x_max] in normalized coordinates (0.0 to 1.0)
 line_roi:
-  - [0.4167, 0.5000, 0.2500, 0.7500]  # Upper ROI (5/12 to 6/12 vertical, 1/4 to 3/4 horizontal)
-  - [0.5000, 0.5833, 0.2500, 0.7500]  # Center ROI (6/12 to 7/12 vertical, 1/4 to 3/4 horizontal)
-  - [0.5833, 0.6667, 0.2500, 0.7500]  # Lower ROI (7/12 to 8/12 vertical, 1/4 to 3/4 horizontal)
+  - [0.5, 0.7, 0.2, 0.8]  # Lower ROI (50%-70% vertical, 20%-80% horizontal)
 
 # Color detection thresholds (HSV color space)
 # For black line detection
 lower_black: [0, 0, 0]      # H, S, V lower bounds
 upper_black: [180, 255, 50]  # H, S, V upper bounds
 
-# Control parameters
-center_x_offset: 0  # Offset for center line calculation (pixels)
-x_range: [0.0, 0.010]  # Forward step range (meters)
-yaw_range: [-8, 8]  # Turning angle range (degrees)
-x_max: 0.010  # Maximum forward step (meters)
-
-# Gait parameters for walking
-period_time: 400  # Walking period (milliseconds)
-body_height: 0.025  # Body height offset (meters)
-step_height: 0.015  # Step height (meters)
-
-# Control settings
-auto_start: true  # Automatically start line following on launch
-control_rate: 10  # Control loop rate (Hz)
+# Walking control parameters (sent to ainex_controller)
+forward_speed: 0.01         # Forward step (meters) when line detected
+turn_gain: 0.5              # Turning sensitivity (0.0 - 1.0)
+max_turn_angle: 8.0         # Maximum turning angle (degrees)
+walking_speed: 4            # Walking speed (1-4, 4 is fastest)
+body_height: 0.025          # Body height offset (meters)
