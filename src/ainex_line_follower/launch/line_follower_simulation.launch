@@ -8,20 +8,20 @@
     <env name="GAZEBO_MODEL_PATH" value="$(find gazebo_world)/models"/>
 
     <!-- Launch arguments -->
-    <arg name="paused"          default="false"/>
+    <arg name="paused"          default="true"/>   <!-- Start PAUSED to allow proper loading -->
     <arg name="use_sim_time"    default="true"/>
     <arg name="gui"             default="true"/>
     <arg name="headless"        default="false"/>
     <arg name="debug"           default="false"/>
-    <arg name="verbose"         default="true"/>
+    <arg name="verbose"         default="false"/>  <!-- Reduce verbose output -->
     
     <!-- Robot spawn position and orientation (1000x1000 world, center at 0,0) -->
-    <arg name="x"               default="0"/>
+    <arg name="x"               default="-0.3"/>  <!-- Moved 30cm forward (negative X with -180° yaw) -->
     <arg name="y"               default="0"/>
-    <arg name="z"               default="0.30"/>  <!-- Increased height to account for bent knees -->
+    <arg name="z"               default="0.25"/>  <!-- Height matching Reference (0.24-0.25) -->
     <arg name="roll"            default="0"/>
     <arg name="pitch"           default="0"/>
-    <arg name="yaw"             default="-1.5708"/>  <!-- -90 degrees (clockwise) to face the line -->
+    <arg name="yaw"             default="-3.14159"/>  <!-- -180 degrees (turned 90° right from -90°) -->
 
     <!-- Set use_sim_time parameter -->
     <param name="/use_sim_time" value="$(arg use_sim_time)"/>
@@ -57,8 +57,12 @@
         <arg name="gazebo_sim" value="true"/>
     </include>
 
-    <!-- Line follower node -->
-    <node name="line_follower" pkg="ainex_line_follower" type="line_follower_node.py" output="screen">
+    <!-- Delayed start script - unpauses Gazebo after robot is loaded -->
+    <node name="delayed_start" pkg="ainex_line_follower" type="delayed_start.sh" output="screen" />
+
+    <!-- Line follower node V2 with improved walking logic and launch-prefix to add delay -->
+    <node name="line_follower" pkg="ainex_line_follower" type="line_follower_node_v2.py" output="screen"
+          launch-prefix="bash -c 'sleep 5; $0 $@' ">
         <param name="image_topic" value="/camera/image_raw"/>
         <param name="control_rate" value="10"/>
         <rosparam file="$(find ainex_line_follower)/config/line_follower_params.yaml" command="load"/>

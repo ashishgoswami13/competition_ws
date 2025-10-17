@@ -6,16 +6,19 @@ image_process_size: [160, 120]  # Width x Height for processing
 # ROI (Region of Interest) for line detection
 # Single ROI in lower portion of image: [y_min, y_max, x_min, x_max] in normalized coordinates (0.0 to 1.0)
 line_roi:
-  - [0.5, 0.7, 0.2, 0.8]  # Lower ROI (50%-70% vertical, 20%-80% horizontal)
+  - [0.6, 0.8, 0.2, 0.8]  # Lower ROI (60%-80% vertical, 20%-80% horizontal) - closer to robot
 
 # Color detection thresholds (HSV color space)
 # For black line detection
 lower_black: [0, 0, 0]      # H, S, V lower bounds
 upper_black: [180, 255, 50]  # H, S, V upper bounds
+min_contour_area: 80        # Minimum area to consider - reduced to detect line easier
 
 # Walking control parameters (sent to ainex_controller)
-forward_speed: 0.01         # Forward step (meters) when line detected
-turn_gain: 0.5              # Turning sensitivity (0.0 - 1.0)
-max_turn_angle: 8.0         # Maximum turning angle (degrees)
-walking_speed: 4            # Walking speed (1-4, 4 is fastest)
-body_height: 0.025          # Body height offset (meters)
+forward_speed: 0.008        # Forward step (meters) - REDUCED for stability
+turn_gain: 1.2              # Turning sensitivity - INCREASED for better recovery
+max_turn_angle: 15.0        # Maximum turning angle (degrees) - INCREASED for sharp turns
+min_turn_angle: 5.0         # Minimum angle to be considered "turning"
+center_tolerance: 15        # Dead zone in pixels (no turn if within this)
+walking_speed: 4            # Walking speed (1-4, where 4 is SLOWEST - 600ms period!)
+body_height: 0.025          # Body height offset (meters) - matching Reference visual_patrol
