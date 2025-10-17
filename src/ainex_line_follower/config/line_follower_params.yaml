@@ -14,11 +14,13 @@ lower_black: [0, 0, 0]      # H, S, V lower bounds
 upper_black: [180, 255, 50]  # H, S, V upper bounds
 min_contour_area: 80        # Minimum area to consider - reduced to detect line easier
 
-# Walking control parameters (sent to ainex_controller)
-forward_speed: 0.008        # Forward step (meters) - REDUCED for stability
-turn_gain: 1.2              # Turning sensitivity - INCREASED for better recovery
-max_turn_angle: 15.0        # Maximum turning angle (degrees) - INCREASED for sharp turns
-min_turn_angle: 5.0         # Minimum angle to be considered "turning"
-center_tolerance: 15        # Dead zone in pixels (no turn if within this)
-walking_speed: 4            # Walking speed (1-4, where 4 is SLOWEST - 600ms period!)
-body_height: 0.025          # Body height offset (meters) - matching Reference visual_patrol
+# Walking control parameters (adapted for simulation - much slower than real robot)
+forward_speed: 0.006        # Forward step (meters) - REDUCED for simulation stability
+min_forward_speed: 0.004    # Reduced speed when sharp turn (yaw > 6°)
+turn_gain: 1.2              # Turning sensitivity (not used in Reference implementation)
+max_turn_angle: 8.0         # Maximum turning angle (degrees) - Reference yaw_range = [-8, 8]
+min_turn_angle: 4.0         # DSP switch threshold - Reference uses 4° to switch gaits
+center_tolerance: 10        # Dead zone in pixels - Reference uses 10 pixels
+center_x_offset: 0          # Camera calibration offset in pixels (Reference uses 66 for real robot)
+walking_speed: 4            # Walking speed (1-4, ignored - we use DSP periods directly)
+body_height: 0.025          # Body height offset (meters) - matching Reference

@@ -59,11 +59,14 @@ class LineFollowerV2:
         self.min_contour_area = rospy.get_param('~min_contour_area', 50)
         
         # Walking control parameters
-        self.center_tolerance = rospy.get_param('~center_tolerance', 10)  # pixels
-        self.max_turn_angle = rospy.get_param('~max_turn_angle', 8.0)
-        self.min_turn_angle = rospy.get_param('~min_turn_angle', 4.0)
-        self.max_forward_speed = rospy.get_param('~forward_speed', 0.010)  # m
-        self.min_forward_speed = rospy.get_param('~min_forward_speed', 0.006)  # m when turning hard
+        self.center_tolerance = rospy.get_param('~center_tolerance', 10)  # pixels - dead zone
+        self.max_turn_angle = rospy.get_param('~max_turn_angle', 8.0)  # Reference uses ±8 degrees
+        self.min_turn_angle = rospy.get_param('~min_turn_angle', 4.0)  # Switch DSP at 4 degrees
+        self.max_forward_speed = rospy.get_param('~forward_speed', 0.006)  # m - REDUCED for simulation
+        self.min_forward_speed = rospy.get_param('~min_forward_speed', 0.004)  # m - reduced for sharp turns
+        
+        # Camera calibration offset (for camera alignment correction)
+        self.center_x_offset = rospy.get_param('~center_x_offset', 0)  # pixels offset from geometric center
         
         # State tracking
         self.current_image = None
@@ -80,21 +83,30 @@ class LineFollowerV2:
         rospy.loginfo("⚙️  Initializing GaitManager...")
         self.gait_manager = GaitManager()
         
-        # Configure walking parameters - SLOW and STABLE
-        # Based on Reference visual_patrol with reduced speeds
-        self.walking_param = self.gait_manager.get_gait_param()
-        self.walking_param['body_height'] = 0.025  # m
-        self.walking_param['step_height'] = 0.010  # m - REDUCED for stability
-        self.walking_param['hip_pitch_offset'] = 15
-        self.walking_param['z_swap_amplitude'] = 0.005  # m - REDUCED for stability
+        # Configure walking parameters - MUCH SLOWER for simulation stability
+        # Real robot uses faster speeds, simulation needs gentler motion
+        # Straight walking (go_gait_param)
+        self.go_gait_param = self.gait_manager.get_gait_param()
+        self.go_gait_param['body_height'] = 0.025  # m
+        self.go_gait_param['step_height'] = 0.008  # m - REDUCED from 0.015 for simulation
+        self.go_gait_param['hip_pitch_offset'] = 15
+        self.go_gait_param['z_swap_amplitude'] = 0.004  # m - REDUCED from 0.006 for less sway
+        
+        # Turning walking (turn_gait_param)
+        self.turn_gait_param = self.gait_manager.get_gait_param()
+        self.turn_gait_param['body_height'] = 0.025  # m
+        self.turn_gait_param['step_height'] = 0.010  # m - REDUCED from 0.02 for simulation
+        self.turn_gait_param['hip_pitch_offset'] = 15
+        self.turn_gait_param['z_swap_amplitude'] = 0.004  # m - REDUCED from 0.006
         
         # DSP (Double Support Phase) parameters: [period_ms, dsp_ratio, y_swap]
-        # Use slower periods for stability
-        self.straight_dsp = [600, 0.2, 0.02]  # 600ms = slowest walking
-        self.turn_dsp = [600, 0.2, 0.02]      # Same slow speed when turning
+        # MUCH SLOWER for simulation - real robot uses 300/400ms
+        self.go_dsp = [600, 0.3, 0.015]    # SLOW: 600ms period, longer DSP for stability
+        self.turn_dsp = [700, 0.35, 0.015]  # VERY SLOW: 700ms for turning stability
         
-        # Arm swing (0 = no swing for maximum stability)
-        self.arm_swing = 0
+        # Arm swing - keep at 0 for simulation
+        self.go_arm_swap = 0
+        self.turn_arm_swap = 0
         
         # Publishers
         self.debug_image_pub = rospy.Publisher('/line_follower_node/debug_image', Image, queue_size=1)
@@ -119,7 +131,8 @@ class LineFollowerV2:
         
         rospy.loginfo("🤖 Setting initial standing pose...")
         try:
-            self.gait_manager.update_pose(self.walking_param)
+            # Use go_gait_param for initialization
+            self.gait_manager.update_pose(self.go_gait_param)
             rospy.sleep(1.5)
         except Exception as e:
             rospy.logwarn(f"Pose update warning (non-critical): {e}")
@@ -184,96 +197,109 @@ class LineFollowerV2:
                         cv2.drawContours(debug_image, [adjusted_contour], -1, (0, 0, 255), 2)
                         cv2.circle(debug_image, (line_center_x, cy + y_min), 5, (255, 0, 0), -1)
         
-        # Draw center alignment lines (crosshair)
+        # Draw alignment reference lines (crosshair)
+        # Geometric center (yellow)
         cv2.line(debug_image, (width // 2, 0), (width // 2, height), (0, 255, 255), 1)  # Vertical yellow line
         cv2.line(debug_image, (0, height // 2), (width, height // 2), (0, 255, 255), 1)  # Horizontal yellow line
+        
+        # Calibrated center (green) - the ACTUAL alignment target
+        calibrated_center_x = int(width / 2.0 + self.center_x_offset)
+        cv2.line(debug_image, (calibrated_center_x, 0), (calibrated_center_x, height), (0, 255, 0), 2)  # Thick green line
+        
         status_text = "Line: YES" if line_detected else "Line: NO"
         status_color = (0, 255, 0) if line_detected else (0, 0, 255)
         cv2.putText(debug_image, status_text, (5, 15), cv2.FONT_HERSHEY_SIMPLEX, 0.4, status_color, 1)
         
+        # Display calibration info
+        if self.center_x_offset != 0:
+            cv2.putText(debug_image, f"Calib: {self.center_x_offset:+d}px", (5, 30), 
+                       cv2.FONT_HERSHEY_SIMPLEX, 0.4, (0, 255, 0), 1)
+        
         if line_detected:
-            cv2.putText(debug_image, f"X: {line_center_x}", (5, 30), 
+            error = line_center_x - calibrated_center_x
+            cv2.putText(debug_image, f"X: {line_center_x} Err: {error:+d}px", (5, 45 if self.center_x_offset != 0 else 30), 
                        cv2.FONT_HERSHEY_SIMPLEX, 0.4, (255, 255, 255), 1)
         
         return line_detected, line_center_x, debug_image
     
     def calculate_turn_angle(self, line_x, image_width):
         """
-        Calculate turn angle based on line position
-        More aggressive recovery when line is far off-center
+        Calculate turn angle based on line position - Reference implementation
+        Uses 3-zone control: dead zone, proportional, and max turn
         
         Returns: turn_angle in degrees (negative = turn left, positive = turn right)
         """
-        center_x = image_width / 2.0
+        center_x = image_width / 2.0 + self.center_x_offset
         error = line_x - center_x
         
-        # Dead zone - no turning if close to center
+        # Zone 1: Dead zone - no turning if close to center (within 10 pixels)
         if abs(error) < self.center_tolerance:
             return 0
         
-        # Small error (within 1/6 of width) - gentle proportional control
+        # Zone 2: Proportional control (within width/6 from center)
         elif abs(error) < image_width / 6:
-            # Linear interpolation from min to max turn angle
-            turn_ratio = abs(error) / (image_width / 6)
-            turn_angle = self.min_turn_angle + turn_ratio * (self.max_turn_angle - self.min_turn_angle)
-            return math.copysign(turn_angle, error)
+            # Reference formula: copysign(1, error) + val_map(error, -width/6, width/6, yaw_range[0]+1, yaw_range[1]-1)
+            # This creates smooth proportional control with a bias of ±1 degree
+            proportional = self._val_map(error, -image_width/6, image_width/6, 
+                                        -self.max_turn_angle + 1, self.max_turn_angle - 1)
+            return math.copysign(1, error) + proportional
         
-        # Medium error (1/6 to 1/3 of width) - stronger response
-        elif abs(error) < image_width / 3:
-            # Use 80% of max turn angle for medium errors
-            turn_angle = self.max_turn_angle * 0.8
-            return math.copysign(turn_angle, error)
-        
-        # Large error (beyond 1/3 of width) - MAXIMUM turn for recovery
+        # Zone 3: Maximum turn (beyond width/6 from center)
         else:
             return math.copysign(self.max_turn_angle, error)
     
+    def _val_map(self, value, in_min, in_max, out_min, out_max):
+        """Map value from input range to output range (like Arduino map function)"""
+        return (value - in_min) * (out_max - out_min) / (in_max - in_min) + out_min
+    
     def calculate_forward_speed(self, turn_angle):
         """
-        Calculate forward speed based on turn angle
-        Slow down significantly when turning hard for stability and recovery
+        Calculate forward speed based on turn angle - Reference implementation adapted for simulation
+        Slow down significantly when turning sharply (abs_turn > 6 degrees)
         
         Returns: forward_speed in meters
         """
         abs_turn = abs(turn_angle)
         
-        if abs_turn < self.min_turn_angle:
-            # Going straight - max speed
-            return self.max_forward_speed
-        elif abs_turn < self.max_turn_angle * 0.6:
-            # Moderate turn - interpolate speed
-            turn_ratio = abs_turn / (self.max_turn_angle * 0.6)
-            speed = self.max_forward_speed - turn_ratio * (self.max_forward_speed - self.min_forward_speed)
-            return speed
+        # Adapted for simulation: slower speeds to prevent instability
+        if abs_turn > 6:
+            return self.min_forward_speed  # 0.004m when sharp turning
         else:
-            # Sharp turn or recovery - VERY slow for stability
-            # Use 70% of minimum speed for aggressive recovery turns
-            return self.min_forward_speed * 0.7
+            return self.max_forward_speed  # 0.006m when going straight or gentle turn
     
     def execute_walk_command(self, forward_speed, turn_angle, is_turning):
         """
-        Execute walking command using GaitManager.set_step()
-        Similar to Reference visual_patrol
+        Execute walking command using GaitManager.set_step() - Reference implementation
+        Uses different gait params and DSP based on turn angle (threshold at 4 degrees)
         
         Args:
             forward_speed: meters
             turn_angle: degrees (will be negated for proper direction)
-            is_turning: whether robot is turning (affects DSP)
+            is_turning: whether robot is turning (not used, we check abs(turn_angle) < 4)
         """
-        # Choose DSP based on whether turning
-        dsp = self.turn_dsp if is_turning else self.straight_dsp
-        
-        # Execute step using set_step (lower level, more control)
-        # Note: turn_angle is negated to match expected direction
-        self.gait_manager.set_step(
-            dsp,                    # [period_ms, dsp_ratio, y_swap]
-            forward_speed,          # x_amplitude (meters)
-            0,                      # y_amplitude (meters)
-            int(-turn_angle),       # rotation_angle (degrees, negated)
-            self.walking_param,     # gait parameters
-            arm_swap=self.arm_swing, # arm swing amount
-            step_num=0              # 0 = continuous walking
-        )
+        # Reference: if abs(yaw_output) < 4: use go_gait, else: use turn_gait
+        if abs(turn_angle) < 4:
+            # Going straight or very gentle turn - use go_gait_param
+            self.gait_manager.set_step(
+                self.go_dsp,              # [300, 0.2, 0.02] - faster
+                forward_speed,            # x_amplitude (meters)
+                0,                        # y_amplitude (meters)
+                int(-turn_angle),         # rotation_angle (degrees, negated)
+                self.go_gait_param,       # straight gait parameters
+                arm_swap=self.go_arm_swap,  # arm swing
+                step_num=0
+            )
+        else:
+            # Turning - use turn_gait_param
+            self.gait_manager.set_step(
+                self.turn_dsp,            # [400, 0.2, 0.02] - slower for stability
+                forward_speed,            # x_amplitude (meters)
+                0,                        # y_amplitude (meters)
+                int(-turn_angle),         # rotation_angle (degrees, negated)
+                self.turn_gait_param,     # turning gait parameters
+                arm_swap=self.turn_arm_swap,  # arm swing
+                step_num=0
+            )
     
     def control_walking(self):
         """
@@ -329,12 +355,12 @@ class LineFollowerV2:
         if not self.first_step_done:
             rospy.loginfo("🚶 Taking first step gently...")
             self.execute_walk_command(
-                forward_speed=0.003,  # Very small first step
+                forward_speed=0.002,  # Very small first step - REDUCED for stability
                 turn_angle=0,
                 is_turning=False
             )
             self.first_step_done = True
-            rospy.sleep(1.0)  # Pause after first step
+            rospy.sleep(1.5)  # Longer pause after first step for stability
             return
         
         # Calculate control outputs
