@@ -16,8 +16,8 @@
     <arg name="verbose"         default="false"/>  <!-- Reduce verbose output -->
     
     <!-- Robot spawn position and orientation (1000x1000 world, center at 0,0) -->
-    <arg name="x"               default="0"/>  <!-- Moved 30cm forward (negative X with -180° yaw) -->
-    <arg name="y"               default="0"/>
+    <arg name="x"               default="-0.3"/>  <!-- Moved 30cm forward (negative X with -180° yaw) -->
+    <arg name="y"               default="1"/>
     <arg name="z"               default="0.25"/>  <!-- Height matching Reference (0.24-0.25) -->
     <arg name="roll"            default="0"/>/
     <arg name="pitch"           default="0"/>
@@ -58,14 +58,14 @@
     </include>
 
     <!-- Delayed start script - unpauses Gazebo after robot is loaded -->
-    <node name="delayed_start" pkg="ainex_line_follower" type="delayed_start.sh" output="screen" />
+    <node name="delayed_start" pkg="line_follower_test" type="delayed_start.sh" output="screen" />
 
-    <!-- Line follower node V2 with improved walking logic and launch-prefix to add delay -->
-    <node name="line_follower" pkg="ainex_line_follower" type="line_follower_node_v2.py" output="screen"
+    <!-- Line follower node V2 with improved walking logic and PID control -->
+    <node name="line_follower" pkg="line_follower_test" type="line_follower_node_v2.py" output="screen"
           launch-prefix="bash -c 'sleep 5; $0 $@' ">
         <param name="image_topic" value="/camera/image_raw"/>
         <param name="control_rate" value="10"/>
-        <rosparam file="$(find ainex_line_follower)/config/line_follower_params.yaml" command="load"/>
+        <rosparam file="$(find line_follower_test)/config/line_follower_params.yaml" command="load"/>
     </node>
 
 </launch>

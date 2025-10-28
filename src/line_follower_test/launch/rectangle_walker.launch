@@ -13,20 +13,25 @@
     <arg name="gui"             default="true"/>
     <arg name="headless"        default="false"/>
     <arg name="debug"           default="false"/>
-    <arg name="verbose"         default="false"/>  <!-- Reduce verbose output -->
+    <arg name="verbose"         default="false"/>
     
-    <!-- Robot spawn position and orientation (1000x1000 world, center at 0,0) -->
-    <arg name="x"               default="0"/>  <!-- Moved 30cm forward (negative X with -180° yaw) -->
+    <!-- Rectangle walking parameters -->
+    <arg name="side_long"       default="0.30"/>  <!-- 30cm -->
+    <arg name="side_short"      default="0.20"/>  <!-- 20cm -->
+    <arg name="num_laps"        default="2"/>     <!-- Number of rectangles to walk -->
+    
+    <!-- Robot spawn position (centered, facing forward) -->
+    <arg name="x"               default="0"/>
     <arg name="y"               default="0"/>
-    <arg name="z"               default="0.25"/>  <!-- Height matching Reference (0.24-0.25) -->
-    <arg name="roll"            default="0"/>/
+    <arg name="z"               default="0.25"/>
+    <arg name="roll"            default="0"/>
     <arg name="pitch"           default="0"/>
-    <arg name="yaw"             default="-3.14159"/>  <!-- -180 degrees (turned 90° right from -90°) -->
+    <arg name="yaw"             default="0"/>  <!-- Facing forward (0 degrees) -->
 
     <!-- Set use_sim_time parameter -->
     <param name="/use_sim_time" value="$(arg use_sim_time)"/>
 
-    <!-- Launch Gazebo with line_follower world -->
+    <!-- Launch Gazebo with empty world (no line needed) -->
     <include file="$(find gazebo_ros)/launch/empty_world.launch">
         <arg name="world_name"      value="$(find gazebo_world)/worlds/line_follower.world"/>
         <arg name="paused"          value="$(arg paused)"/>
@@ -58,14 +63,16 @@
     </include>
 
     <!-- Delayed start script - unpauses Gazebo after robot is loaded -->
-    <node name="delayed_start" pkg="ainex_line_follower" type="delayed_start.sh" output="screen" />
+    <node name="delayed_start" pkg="line_follower_test" type="delayed_start.sh" output="screen" />
 
-    <!-- Line follower node V2 with improved walking logic and launch-prefix to add delay -->
-    <node name="line_follower" pkg="ainex_line_follower" type="line_follower_node_v2.py" output="screen"
+    <!-- Rectangle Walker Node - Makes robot walk in rectangular pattern -->
+    <node name="rectangle_walker" pkg="line_follower_test" type="rectangle_walker_node.py" output="screen"
           launch-prefix="bash -c 'sleep 5; $0 $@' ">
-        <param name="image_topic" value="/camera/image_raw"/>
-        <param name="control_rate" value="10"/>
-        <rosparam file="$(find ainex_line_follower)/config/line_follower_params.yaml" command="load"/>
+        <param name="side_long" value="$(arg side_long)"/>
+        <param name="side_short" value="$(arg side_short)"/>
+        <param name="num_laps" value="$(arg num_laps)"/>
+        <param name="forward_speed" value="0.05"/>  <!-- 5cm per step - matches Lesson 4 tutorial (x_move_amplitude) -->
+        <param name="turn_speed" value="10"/>  <!-- 10 degrees per step -->
     </node>
 
 </launch>

@@ -60,10 +60,10 @@ class LineFollowerV2:
         
         # Walking control parameters
         self.center_tolerance = rospy.get_param('~center_tolerance', 10)  # pixels - dead zone
-        self.max_turn_angle = rospy.get_param('~max_turn_angle', 10.0)  # Lesson 4 default
-        self.min_turn_angle = rospy.get_param('~min_turn_angle', 5.0)  # Switch DSP threshold
-        self.max_forward_speed = rospy.get_param('~forward_speed', 0.05)  # Tutorial default: 0.05m
-        self.min_forward_speed = rospy.get_param('~min_forward_speed', 0.02)  # reduced for sharp turns
+        self.max_turn_angle = rospy.get_param('~max_turn_angle', 8.0)  # Reference uses ±8 degrees
+        self.min_turn_angle = rospy.get_param('~min_turn_angle', 4.0)  # Switch DSP at 4 degrees
+        self.max_forward_speed = rospy.get_param('~forward_speed', 0.006)  # m - REDUCED for simulation
+        self.min_forward_speed = rospy.get_param('~min_forward_speed', 0.004)  # m - reduced for sharp turns
         
         # Camera calibration offset (for camera alignment correction)
         self.center_x_offset = rospy.get_param('~center_x_offset', 0)  # pixels offset from geometric center
@@ -83,32 +83,29 @@ class LineFollowerV2:
         rospy.loginfo("⚙️  Initializing GaitManager...")
         self.gait_manager = GaitManager()
         
-        # Configure walking parameters - EXACT defaults from Lesson 4 tutorial
-        # Source: Reference/ainex_driver/ainex_kinematics/config/walking_param_sim.yaml
-        
+        # Configure walking parameters - MUCH SLOWER for simulation stability
+        # Real robot uses faster speeds, simulation needs gentler motion
         # Straight walking (go_gait_param)
         self.go_gait_param = self.gait_manager.get_gait_param()
-        self.go_gait_param['body_height'] = 0.025          # init_z_offset
-        self.go_gait_param['step_height'] = 0.015          # z_move_amplitude
-        self.go_gait_param['hip_pitch_offset'] = 15        # hip_pitch_offset
-        self.go_gait_param['z_swap_amplitude'] = 0.006     # z_swap_amplitude
-        self.go_gait_param['pelvis_offset'] = 0            # pelvis_offset
+        self.go_gait_param['body_height'] = 0.025  # m
+        self.go_gait_param['step_height'] = 0.008  # m - REDUCED from 0.015 for simulation
+        self.go_gait_param['hip_pitch_offset'] = 15
+        self.go_gait_param['z_swap_amplitude'] = 0.004  # m - REDUCED from 0.006 for less sway
         
         # Turning walking (turn_gait_param)
         self.turn_gait_param = self.gait_manager.get_gait_param()
-        self.turn_gait_param['body_height'] = 0.025
-        self.turn_gait_param['step_height'] = 0.020        # Slightly higher for turns
+        self.turn_gait_param['body_height'] = 0.025  # m
+        self.turn_gait_param['step_height'] = 0.010  # m - REDUCED from 0.02 for simulation
         self.turn_gait_param['hip_pitch_offset'] = 15
-        self.turn_gait_param['z_swap_amplitude'] = 0.006
-        self.turn_gait_param['pelvis_offset'] = 0
+        self.turn_gait_param['z_swap_amplitude'] = 0.004  # m - REDUCED from 0.006
         
-        # DSP (Double Support Phase) parameters: [period_ms, dsp_ratio, y_swap_amplitude]
-        # EXACT simulation defaults from walking_param_sim.yaml
-        self.go_dsp = [1500, 0.3, 0.035]    # Lesson 4: 1500ms period for simulation
-        self.turn_dsp = [1800, 0.35, 0.035]  # Slower for turning stability
+        # DSP (Double Support Phase) parameters: [period_ms, dsp_ratio, y_swap]
+        # MUCH SLOWER for simulation - real robot uses 300/400ms
+        self.go_dsp = [600, 0.3, 0.015]    # SLOW: 600ms period, longer DSP for stability
+        self.turn_dsp = [700, 0.35, 0.015]  # VERY SLOW: 700ms for turning stability
         
-        # Arm swing - disabled in simulation (as per walking_param_sim.yaml)
-        self.go_arm_swap = 0  # arm_swing_gain: 0.0
+        # Arm swing - keep at 0 for simulation
+        self.go_arm_swap = 0
         self.turn_arm_swap = 0
         
         # Publishers
@@ -257,20 +254,18 @@ class LineFollowerV2:
     
     def calculate_forward_speed(self, turn_angle):
         """
-        Calculate forward speed based on turn angle - Reference implementation
-        ALWAYS moves forward, even when turning sharply
-        Reference: if abs(yaw) > 6: x_output = 0.008, else: x_output = self.x_max
+        Calculate forward speed based on turn angle - Reference implementation adapted for simulation
+        Slow down significantly when turning sharply (abs_turn > 6 degrees)
         
         Returns: forward_speed in meters
         """
         abs_turn = abs(turn_angle)
         
-        # CRITICAL: ALWAYS move forward (Reference behavior)
-        # When turning sharply (> 6 degrees), reduce speed but still move forward
+        # Adapted for simulation: slower speeds to prevent instability
         if abs_turn > 6:
-            return 0.008  # Reference uses 0.008m for sharp turns (still moving forward!)
+            return self.min_forward_speed  # 0.004m when sharp turning
         else:
-            return self.max_forward_speed  # Full speed when straight or gentle turn
+            return self.max_forward_speed  # 0.006m when going straight or gentle turn
     
     def execute_walk_command(self, forward_speed, turn_angle, is_turning):
         """
@@ -309,28 +304,50 @@ class LineFollowerV2:
     def control_walking(self):
         """
         Main walking control logic
-        Based on Reference: Only send commands when line is detected
-        When line is lost, robot continues with last command (keeps walking)
+        When line is lost, robot moves forward in last known direction
         """
         if not self.line_detected:
-            # Line not detected - DON'T send new commands
-            # Robot will continue executing the last walking command
+            # Line not detected
             self.line_lost_count += 1
             
-            # Only log occasionally to avoid spam
-            if self.line_lost_count == 1:
-                rospy.logwarn(f"⚠️  Line lost - robot continues with last command...")
-            elif self.line_lost_count % 20 == 0:
-                rospy.logwarn(f"⚠️  Line still lost ({self.line_lost_count} frames) - still searching...")
-            
-            # CRITICAL: Don't send any new commands - let robot keep executing last command
-            # This allows it to continue moving and potentially find the line again
+            if self.line_lost_count < self.max_line_lost_frames and self.last_line_x is not None:
+                # Line lost - Continue moving FORWARD in the last known direction
+                # Calculate the last known turn direction
+                if self.line_lost_count == 1:
+                    # Just lost the line - calculate last known direction
+                    image_center = self.image_process_size[0] / 2.0
+                    error = self.last_line_x - image_center
+                    
+                    # Calculate turn angle based on last position
+                    if abs(error) < self.center_tolerance:
+                        self.rotation_direction = 0  # Was going straight
+                    elif abs(error) < self.image_process_size[0] / 6:
+                        # Small offset - gentle turn
+                        turn_ratio = abs(error) / (self.image_process_size[0] / 6)
+                        angle = self.min_turn_angle + turn_ratio * (self.max_turn_angle - self.min_turn_angle)
+                        self.rotation_direction = math.copysign(angle, error)
+                    else:
+                        # Large offset - use max turn
+                        self.rotation_direction = math.copysign(self.max_turn_angle, error)
+                
+                # Move FORWARD while maintaining last known turn direction
+                rospy.logwarn_throttle(0.5, f"⚠️  Line lost ({self.line_lost_count}/{self.max_line_lost_frames}) - continuing in last direction (turn: {self.rotation_direction:.1f}°)...")
+                
+                self.execute_walk_command(
+                    forward_speed=self.min_forward_speed * 0.5,  # Slow forward movement
+                    turn_angle=self.rotation_direction,  # Maintain last turn direction
+                    is_turning=abs(self.rotation_direction) > 0.5  # Any turn above 0.5 degrees
+                )
+            else:
+                # Lost line for too long - stop
+                if self.first_step_done:
+                    rospy.logwarn_throttle(2.0, "❌ Line lost for too long - STOPPED")
+                    self.gait_manager.stop()
+                else:
+                    rospy.logwarn_throttle(2.0, "❌ No line detected - waiting...")
             return
         
         # Line detected - reset lost counter
-        if self.line_lost_count > 0:
-            rospy.loginfo(f"✅ Line found again after {self.line_lost_count} frames!")
-        
         self.line_lost_count = 0
         self.last_line_x = self.line_center_x
         

@@ -1,0 +1,29 @@
+<?xml version="1.0"?>
+<package format="2">
+  <name>line_follower_test</name>
+  <version>1.0.0</version>
+  <description>Experimental line following package for testing improvements - copy of ainex_line_follower</description>
+  
+  <maintainer email="user@todo.com">User</maintainer>
+  <license>Apache-2.0</license>
+
+  <buildtool_depend>catkin</buildtool_depend>
+  
+  <depend>rospy</depend>
+  <depend>std_msgs</depend>
+  <depend>sensor_msgs</depend>
+  <depend>geometry_msgs</depend>
+  <depend>cv_bridge</depend>
+  <depend>image_transport</depend>
+  <depend>ainex_description</depend>
+  <depend>ainex_gazebo</depend>
+  <depend>gazebo_world</depend>
+  <depend>gazebo_ros</depend>
+  <depend>controller_manager</depend>
+  <depend>joint_state_controller</depend>
+  <depend>position_controllers</depend>
+  
+  <exec_depend>xacro</exec_depend>
+  <exec_depend>robot_state_publisher</exec_depend>
+  
+</package>
