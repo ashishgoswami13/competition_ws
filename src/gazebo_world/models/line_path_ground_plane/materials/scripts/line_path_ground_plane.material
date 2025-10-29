@@ -10,7 +10,7 @@ material LinePathGroundPlane/Image
 
         texture_unit
         {
-        texture ../textures/oval.png
+        texture ../textures/line.png
         tex_address_mode wrap
         filtering anisotropic
         max_anisotropy 16

@@ -1,0 +1,42 @@
+<?xml version='1.0' encoding='utf-8'?>
+<sdf version="1.7">
+    <model name="hurdle">
+        <link name="Component1">
+            <pose>0.0 0.0 0.0 0.0 -0.0 0.0</pose>
+            <inertial>
+                <mass>1.7337047334147446</mass>
+                <pose>2.0983843078782315e-17 2.6229803848477894e-18 0.019992382031315654 0.0 0.0 0.0</pose>
+                <inertia>
+                    <ixx>0.0003338135371847992</ixx>
+                    <iyy>0.006969349134647614</iyy>
+                    <izz>0.006841158926371186</izz>
+                    <ixy>9.542347051493524e-35</ixy>
+                    <iyz>1.8186429784380222e-19</iyz>
+                    <ixz>1.4549143827504178e-18</ixz>
+                </inertia>
+            </inertial>
+            <visual name="Component1_visual">
+                <geometry>
+                    <mesh>
+                        <uri>model://hurdle/meshes/Component1.stl</uri>
+                        <scale>0.001 0.001 0.001</scale>
+                    </mesh>
+                </geometry>
+                <material>
+                    <ambient>0.0 0.0 1.0 1.0</ambient>
+                    <diffuse>0.0 0.0 1.0 1.0</diffuse>
+                    <specular>0.5 0.5 0.5 1.0</specular>
+                    <emissive>0.0 0.0 0.0 1.0</emissive>
+                </material>
+            </visual>
+            <collision name="Component1_collision">
+                <geometry>
+                    <mesh>
+                        <uri>model://hurdle/meshes/Component1.stl</uri>
+                        <scale>0.001 0.001 0.001</scale>
+                    </mesh>
+                </geometry>
+            </collision>
+        </link>
+    </model>
+</sdf>

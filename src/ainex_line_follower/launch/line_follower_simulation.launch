@@ -21,7 +21,7 @@
     <arg name="z"               default="0.25"/>  <!-- Height matching Reference (0.24-0.25) -->
     <arg name="roll"            default="0"/>/
     <arg name="pitch"           default="0"/>
-    <arg name="yaw"             default="-3.14159"/>  <!-- -180 degrees (turned 90° right from -90°) -->
+    <arg name="yaw"             default="90"/>  <!-- -180 degrees (turned 90° right from -90°) -->
 
     <!-- Set use_sim_time parameter -->
     <param name="/use_sim_time" value="$(arg use_sim_time)"/>

@@ -1,5 +1,5 @@
 <?xml version="1.0"?>
-<sdf version='1.7'>
+<sdf version='1.6'>
   <world name='default'>
     
     <light name='sun' type='directional'>
@@ -23,6 +23,123 @@
     <include>
       <uri>model://line_path_ground_plane</uri>
     </include>
+    
+    <!-- Stairs model -->
+    <model name='stairs'>
+      <link name='Component1'>
+        <pose frame=''>0 0 0 0 -0 0</pose>
+        <inertial>
+          <mass>14.04</mass>
+          <pose frame=''>-0.000388 -0.000365 0.0075 0 -0 0</pose>
+          <inertia>
+            <ixx>0.17822</ixx>
+            <iyy>0.105563</iyy>
+            <izz>0.283257</izz>
+            <ixy>8.6859e-18</ixy>
+            <iyz>2.91379e-18</iyz>
+            <ixz>-2.90024e-18</ixz>
+          </inertia>
+        </inertial>
+        <visual name='Component1_visual'>
+          <geometry>
+            <mesh>
+              <uri>model://stairs/meshes/Component1.stl</uri>
+              <scale>0.001 0.001 0.001</scale>
+            </mesh>
+          </geometry>
+          <material>
+            <ambient>1 0 0 1</ambient>
+            <diffuse>1 0 0 1</diffuse>
+            <specular>0.5 0.5 0.5 1</specular>
+            <emissive>0 0 0 1</emissive>
+          </material>
+        </visual>
+        <collision name='Component1_collision'>
+          <geometry>
+            <mesh>
+              <uri>model://stairs/meshes/Component1.stl</uri>
+              <scale>0.001 0.001 0.001</scale>
+            </mesh>
+          </geometry>
+          <max_contacts>10</max_contacts>
+          <surface>
+            <contact>
+              <ode/>
+            </contact>
+            <bounce/>
+            <friction>
+              <torsional>
+                <ode/>
+              </torsional>
+              <ode/>
+            </friction>
+          </surface>
+        </collision>
+        <self_collide>0</self_collide>
+        <enable_wind>0</enable_wind>
+        <kinematic>0</kinematic>
+      </link>
+      <pose frame=''>-1.96935 2.02094 0 0 0 -0.800000</pose>
+    </model>
+    
+    <!-- Hurdle model -->
+    <model name='hurdle'>
+      <link name='Component1'>
+        <pose frame=''>0 0 0 0 -0 0</pose>
+        <inertial>
+          <mass>1.7337</mass>
+          <pose frame=''>0 0 0.019992 0 -0 0</pose>
+          <inertia>
+            <ixx>0.000333814</ixx>
+            <iyy>0.00696935</iyy>
+            <izz>0.00684116</izz>
+            <ixy>9.54235e-35</ixy>
+            <iyz>1.81864e-19</iyz>
+            <ixz>1.45491e-18</ixz>
+          </inertia>
+        </inertial>
+        <visual name='Component1_visual'>
+          <geometry>
+            <mesh>
+              <uri>model://hurdle/meshes/Component1.stl</uri>
+              <scale>0.001 0.001 0.001</scale>
+            </mesh>
+          </geometry>
+          <material>
+            <ambient>0 0 1 1</ambient>
+            <diffuse>0 0 1 1</diffuse>
+            <specular>0.5 0.5 0.5 1</specular>
+            <emissive>0 0 0 1</emissive>
+          </material>
+        </visual>
+        <collision name='Component1_collision'>
+          <geometry>
+            <mesh>
+              <uri>model://hurdle/meshes/Component1.stl</uri>
+              <scale>0.001 0.001 0.001</scale>
+            </mesh>
+          </geometry>
+          <max_contacts>10</max_contacts>
+          <surface>
+            <contact>
+              <ode/>
+            </contact>
+            <bounce/>
+            <friction>
+              <torsional>
+                <ode/>
+              </torsional>
+              <ode/>
+            </friction>
+          </surface>
+        </collision>
+        <self_collide>0</self_collide>
+        <enable_wind>0</enable_wind>
+        <kinematic>0</kinematic>
+      </link>
+      <pose frame=''>-1.15692 1.20177 0 0 0 0.750098</pose>
+    </model>
+    
     <gravity>0 0 -9.8</gravity>
     <magnetic_field>6e-06 2.3e-05 -4.2e-05</magnetic_field>
     <atmosphere type='adiabatic'/>
