@@ -53,10 +53,30 @@ class LineFollowerV2:
         self.image_topic = rospy.get_param('~image_topic', '/camera/image_raw')
         self.control_rate = rospy.get_param('~control_rate', 10)
         self.image_process_size = rospy.get_param('~image_process_size', [160, 120])
-        self.line_roi = rospy.get_param('~line_roi', [[0.5, 0.7, 0.2, 0.8]])
+        
+        # COMMON ROI for both line following and obstacle detection
+        # Format: [y_min, y_max, x_min, x_max] as fractions of image size
+        # Expanded ROI to cover both lower (line) and upper (obstacles) regions
+        self.common_roi = rospy.get_param('~common_roi', [0.3, 0.8, 0.1, 0.9])
+        
+        # Line detection parameters
         self.lower_black = np.array(rospy.get_param('~lower_black', [0, 0, 0]))
         self.upper_black = np.array(rospy.get_param('~upper_black', [180, 255, 50]))
         self.min_contour_area = rospy.get_param('~min_contour_area', 50)
+        
+        # Color detection for obstacles (stairs=red, hurdle=blue)
+        # Red color detection (HSV) - need two ranges because red wraps around 0/180
+        self.lower_red1 = np.array([0, 100, 100])      # Lower red range
+        self.upper_red1 = np.array([10, 255, 255])
+        self.lower_red2 = np.array([160, 100, 100])    # Upper red range
+        self.upper_red2 = np.array([180, 255, 255])
+        
+        # Blue color detection (HSV)
+        self.lower_blue = np.array([100, 100, 100])
+        self.upper_blue = np.array([130, 255, 255])
+        
+        # Minimum area for obstacle detection
+        self.min_obstacle_area = rospy.get_param('~min_obstacle_area', 100)
         
         # Walking control parameters
         self.center_tolerance = rospy.get_param('~center_tolerance', 10)  # pixels - dead zone
@@ -78,6 +98,10 @@ class LineFollowerV2:
         self.is_initialized = False
         self.first_step_done = False
         self.rotation_direction = 1  # 1 for right, -1 for left (remembers last turn direction)
+        
+        # Obstacle color detection state
+        self.detected_colors = []  # List of detected obstacle colors
+        self.last_obstacle_detection = None  # Last detected obstacle type
         
         # Initialize GaitManager
         rospy.loginfo("⚙️  Initializing GaitManager...")
@@ -146,6 +170,7 @@ class LineFollowerV2:
     def detect_line(self, image):
         """
         Detect black line in image using HSV color space
+        Uses common ROI shared with obstacle detection
         Returns: (line_detected, line_center_x, debug_image)
         """
         height, width = self.image_process_size[1], self.image_process_size[0]
@@ -160,70 +185,143 @@ class LineFollowerV2:
         line_center_x = 0
         largest_contour_area = 0
         
-        # Process each ROI
-        for roi in self.line_roi:
-            y_min = int(roi[0] * height)
-            y_max = int(roi[1] * height)
-            x_min = int(roi[2] * width)
-            x_max = int(roi[3] * width)
+        # Use common ROI for line detection
+        roi = self.common_roi
+        y_min = int(roi[0] * height)
+        y_max = int(roi[1] * height)
+        x_min = int(roi[2] * width)
+        x_max = int(roi[3] * width)
+        
+        # Extract ROI mask
+        roi_mask = mask[y_min:y_max, x_min:x_max]
+        
+        # Find contours (handle OpenCV 3 vs 4)
+        contour_result = cv2.findContours(roi_mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+        if len(contour_result) == 3:
+            _, contours, _ = contour_result
+        else:
+            contours, _ = contour_result
+        
+        # Find largest valid contour
+        if contours:
+            largest_contour = max(contours, key=cv2.contourArea)
+            contour_area = cv2.contourArea(largest_contour)
             
-            # Draw ROI on debug image
-            cv2.rectangle(debug_image, (x_min, y_min), (x_max, y_max), (0, 255, 0), 1)
-            
-            # Extract ROI mask
-            roi_mask = mask[y_min:y_max, x_min:x_max]
-            
-            # Find contours (handle OpenCV 3 vs 4)
-            contour_result = cv2.findContours(roi_mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
-            if len(contour_result) == 3:
-                _, contours, _ = contour_result
-            else:
-                contours, _ = contour_result
-            
-            # Find largest valid contour
-            if contours:
-                largest_contour = max(contours, key=cv2.contourArea)
-                contour_area = cv2.contourArea(largest_contour)
+            if contour_area > self.min_contour_area:
+                largest_contour_area = contour_area
+                M = cv2.moments(largest_contour)
                 
-                if contour_area > self.min_contour_area and contour_area > largest_contour_area:
-                    largest_contour_area = contour_area
-                    M = cv2.moments(largest_contour)
+                if M["m00"] > 0:
+                    cx = int(M["m10"] / M["m00"])
+                    cy = int(M["m01"] / M["m00"])
+                    line_center_x = cx + x_min
+                    line_detected = True
                     
-                    if M["m00"] > 0:
-                        cx = int(M["m10"] / M["m00"])
-                        cy = int(M["m01"] / M["m00"])
-                        line_center_x = cx + x_min
-                        line_detected = True
-                        
-                        # Draw contour and center point
-                        adjusted_contour = largest_contour + np.array([x_min, y_min])
-                        cv2.drawContours(debug_image, [adjusted_contour], -1, (0, 0, 255), 2)
-                        cv2.circle(debug_image, (line_center_x, cy + y_min), 5, (255, 0, 0), -1)
-        
-        # Draw alignment reference lines (crosshair)
-        # Geometric center (yellow)
-        cv2.line(debug_image, (width // 2, 0), (width // 2, height), (0, 255, 255), 1)  # Vertical yellow line
-        cv2.line(debug_image, (0, height // 2), (width, height // 2), (0, 255, 255), 1)  # Horizontal yellow line
-        
-        # Calibrated center (green) - the ACTUAL alignment target
-        calibrated_center_x = int(width / 2.0 + self.center_x_offset)
-        cv2.line(debug_image, (calibrated_center_x, 0), (calibrated_center_x, height), (0, 255, 0), 2)  # Thick green line
-        
-        status_text = "Line: YES" if line_detected else "Line: NO"
-        status_color = (0, 255, 0) if line_detected else (0, 0, 255)
-        cv2.putText(debug_image, status_text, (5, 15), cv2.FONT_HERSHEY_SIMPLEX, 0.4, status_color, 1)
-        
-        # Display calibration info
-        if self.center_x_offset != 0:
-            cv2.putText(debug_image, f"Calib: {self.center_x_offset:+d}px", (5, 30), 
-                       cv2.FONT_HERSHEY_SIMPLEX, 0.4, (0, 255, 0), 1)
-        
-        if line_detected:
-            error = line_center_x - calibrated_center_x
-            cv2.putText(debug_image, f"X: {line_center_x} Err: {error:+d}px", (5, 45 if self.center_x_offset != 0 else 30), 
-                       cv2.FONT_HERSHEY_SIMPLEX, 0.4, (255, 255, 255), 1)
+                    # Draw bounding box around the detected line (white box)
+                    x, y, w, h = cv2.boundingRect(largest_contour)
+                    cv2.rectangle(debug_image, (x_min + x, y_min + y), 
+                                (x_min + x + w, y_min + y + h), (255, 255, 255), 2)
         
         return line_detected, line_center_x, debug_image
+    
+    def detect_obstacles(self, image, debug_image):
+        """
+        Detect colored obstacles (stairs=red, hurdle=blue) in the image
+        Uses the same common ROI as line detection
+        Updates debug_image with colored bounding boxes and labels
+        Returns: list of detected colors ['RED', 'BLUE', etc.]
+        """
+        height, width = self.image_process_size[1], self.image_process_size[0]
+        resized = cv2.resize(image, (width, height))
+        
+        # Convert to HSV
+        hsv = cv2.cvtColor(resized, cv2.COLOR_BGR2HSV)
+        
+        detected_colors = []
+        
+        # Use common ROI (same as line detection)
+        roi = self.common_roi
+        y_min = int(roi[0] * height)
+        y_max = int(roi[1] * height)
+        x_min = int(roi[2] * width)
+        x_max = int(roi[3] * width)
+        
+        # NOTE: ROI box is already drawn by detect_line() method
+        # No need to draw it again here
+        
+        # Extract ROI
+        hsv_roi = hsv[y_min:y_max, x_min:x_max]
+        
+        # Detect RED (stairs) - combine two red ranges
+        mask_red1 = cv2.inRange(hsv_roi, self.lower_red1, self.upper_red1)
+        mask_red2 = cv2.inRange(hsv_roi, self.lower_red2, self.upper_red2)
+        mask_red = cv2.bitwise_or(mask_red1, mask_red2)
+        
+        # Find red contours
+        contour_result = cv2.findContours(mask_red, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+        if len(contour_result) == 3:
+            _, contours_red, _ = contour_result
+        else:
+            contours_red, _ = contour_result
+        
+        # Process ALL red contours (stairs) - detect multiple instances
+        red_count = 0
+        for contour in contours_red:
+            red_area = cv2.contourArea(contour)
+            
+            if red_area > self.min_obstacle_area:
+                if 'RED' not in detected_colors:
+                    detected_colors.append('RED')
+                red_count += 1
+                
+                # Draw red bounding box around detected red obstacle
+                x, y, w, h = cv2.boundingRect(contour)
+                cv2.rectangle(debug_image, (x_min + x, y_min + y), 
+                            (x_min + x + w, y_min + y + h), (0, 0, 255), 2)
+        
+        # Detect BLUE (hurdle)
+        mask_blue = cv2.inRange(hsv_roi, self.lower_blue, self.upper_blue)
+        
+        # Find blue contours
+        contour_result = cv2.findContours(mask_blue, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+        if len(contour_result) == 3:
+            _, contours_blue, _ = contour_result
+        else:
+            contours_blue, _ = contour_result
+        
+        # Process ALL blue contours (hurdle) - detect multiple instances
+        blue_count = 0
+        for contour in contours_blue:
+            blue_area = cv2.contourArea(contour)
+            
+            if blue_area > self.min_obstacle_area:
+                if 'BLUE' not in detected_colors:
+                    detected_colors.append('BLUE')
+                blue_count += 1
+                
+                # Draw blue bounding box around detected blue obstacle
+                x, y, w, h = cv2.boundingRect(contour)
+                cv2.rectangle(debug_image, (x_min + x, y_min + y), 
+                            (x_min + x + w, y_min + y + h), (255, 0, 0), 2)
+        
+        # MINIMAL UI: Display only color detection text (REDUCED SIZE)
+        if detected_colors:
+            color_text = "Color: "
+            if 'RED' in detected_colors and 'BLUE' in detected_colors:
+                color_text += "Red + Blue"
+            elif 'RED' in detected_colors:
+                color_text += "Red"
+            elif 'BLUE' in detected_colors:
+                color_text += "Blue"
+            
+            # Draw text with black background for better visibility (smaller font)
+            text_size = cv2.getTextSize(color_text, cv2.FONT_HERSHEY_SIMPLEX, 0.4, 1)[0]
+            cv2.rectangle(debug_image, (5, height - text_size[1] - 10),
+                        (text_size[0] + 10, height - 5), (0, 0, 0), -1)
+            cv2.putText(debug_image, color_text, (8, height - 8),
+                       cv2.FONT_HERSHEY_SIMPLEX, 0.4, (255, 255, 255), 1)
+        
+        return detected_colors
     
     def calculate_turn_angle(self, line_x, image_width):
         """
@@ -376,6 +474,27 @@ class LineFollowerV2:
                 if cv_image is not None:
                     # Detect line
                     self.line_detected, self.line_center_x, debug_image = self.detect_line(cv_image)
+                    
+                    # Detect obstacles (stairs and hurdles)
+                    self.detected_colors = self.detect_obstacles(cv_image, debug_image)
+                    
+                    # Log obstacle detection to terminal
+                    if self.detected_colors:
+                        # Only log when detection changes to avoid spam
+                        current_detection = ",".join(sorted(self.detected_colors))
+                        if current_detection != self.last_obstacle_detection:
+                            obstacle_names = []
+                            if 'RED' in self.detected_colors:
+                                obstacle_names.append("🔴 STAIRS (RED)")
+                            if 'BLUE' in self.detected_colors:
+                                obstacle_names.append("🔵 HURDLE (BLUE)")
+                            
+                            rospy.loginfo(f"🚧 OBSTACLE DETECTED: {' + '.join(obstacle_names)}")
+                            self.last_obstacle_detection = current_detection
+                    else:
+                        if self.last_obstacle_detection is not None:
+                            rospy.loginfo("✅ No obstacles detected")
+                            self.last_obstacle_detection = None
                     
                     # Publish debug image
                     if debug_image is not None:

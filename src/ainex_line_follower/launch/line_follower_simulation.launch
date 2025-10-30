@@ -68,4 +68,10 @@
         <rosparam file="$(find ainex_line_follower)/config/line_follower_params.yaml" command="load"/>
     </node>
 
+    <!-- Image viewer for debug visualization -->
+    <node name="image_view" pkg="rqt_image_view" type="rqt_image_view" 
+          args="/line_follower_node/debug_image"
+          launch-prefix="bash -c 'sleep 8; $0 $@' "
+          output="screen" />
+
 </launch>
