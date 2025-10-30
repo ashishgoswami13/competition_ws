@@ -1,194 +1,231 @@
-# ainex_line_follower
+# Ainex Line Follower
 
-Line following package for the Ainex humanoid robot in Gazebo simulation. This package enables the robot to autonomously follow a black line path using camera vision.
+Autonomous line following package for the Ainex humanoid robot in Gazebo simulation with obstacle color detection.
 
 ## Overview
 
-This package is designed for **simulation only** and is based on the real-world line following functionality from the Reference packages. It has been adapted to work in Gazebo without hardware dependencies.
+This package enables the Ainex robot to autonomously navigate a black line path while detecting and identifying colored obstacles (red stairs and blue hurdles) in a simulated Gazebo environment. It uses camera vision, OpenCV for image processing, and the ainex_kinematics GaitManager for stable bipedal walking.
 
 ## Features
 
-- **Line Detection**: Uses OpenCV to detect black lines in camera images using HSV color space
-- **Region of Interest (ROI)**: Processes three ROI regions for robust line detection
-- **Visual Feedback**: Publishes debug images showing detected lines and ROI regions
-- **Configurable Parameters**: All detection and control parameters are configurable via YAML
+- ✅ **Black Line Following**: HSV-based color detection with adaptive turning control
+- ✅ **Obstacle Color Detection**: Identifies red and blue obstacles in real-time
+- ✅ **Common ROI Processing**: Unified region of interest for line and obstacle detection
+- ✅ **Visual Feedback**: Live image display with bounding boxes and color labels
+- ✅ **Continuous Walking**: Robot maintains last command when line temporarily lost
+- ✅ **GaitManager Integration**: Uses Lesson 4 tutorial walking parameters for simulation
+- ✅ **Auto-Launch Viewer**: Image visualization starts automatically with simulation
 
-## Package Contents
+## Quick Start
 
-```
-ainex_line_follower/
-├── config/
-│   └── line_follower_params.yaml    # Configuration parameters
-├── launch/
-│   ├── line_follower_simulation.launch   # Full simulation with robot spawn
-│   └── line_follower_only.launch         # Line follower node only
-├── scripts/
-│   ├── line_follower_node.py            # Main line following controller
-│   └── simple_camera_publisher.py       # Test camera image publisher
-└── src/
-    └── ainex_line_follower/             # Python package (future expansion)
-```
-
-## Dependencies
-
-- ROS Noetic
-- OpenCV (cv2)
-- cv_bridge
-- ainex_description (robot URDF)
-- ainex_gazebo (Gazebo controllers)
-- gazebo_world (line follower world)
-
-## Installation
-
-1. Clone this package into your catkin workspace:
-```bash
-cd ~/competition_ws/src
-```
-
-2. Build the package:
-```bash
-cd ~/competition_ws
-catkin build ainex_line_follower
-# or
-catkin_make
-```
-
-3. Source the workspace:
-```bash
-source ~/competition_ws/devel/setup.bash
-```
-
-## Usage
-
-### Full Simulation (Recommended)
-
-Launch the complete simulation with robot spawning and line following:
+Launch the complete simulation:
 
 ```bash
 roslaunch ainex_line_follower line_follower_simulation.launch
 ```
 
-This will:
-1. Start Gazebo with the line follower world
-2. Spawn the Ainex robot at the starting position
-3. Load the joint controllers
-4. Start the line follower node
+This will automatically:
+1. Start Gazebo with the line follower world (including stairs and hurdles)
+2. Spawn the Ainex robot at the correct position and orientation
+3. Load position controllers and ainex_kinematics
+4. Start the line follower node with obstacle detection
+5. Open the image viewer showing detection visualization
 
-### Line Follower Node Only
+## Package Structure
 
-If you already have the robot spawned in Gazebo:
-
-```bash
-roslaunch ainex_line_follower line_follower_only.launch
+```
+ainex_line_follower/
+├── config/
+│   └── line_follower_params.yaml         # Detection and control parameters
+├── launch/
+│   └── line_follower_simulation.launch   # Main simulation launch file
+├── scripts/
+│   ├── line_follower_node_v2.py          # Line follower with obstacle detection
+│   └── delayed_start.sh                  # Gazebo unpause script
+└── src/
+    └── ainex_line_follower/              # Python package
 ```
 
-### Test with Simulated Camera
+## Dependencies
 
-For testing without Gazebo (useful for algorithm development):
-
-```bash
-# Terminal 1: Start the test camera publisher
-rosrun ainex_line_follower simple_camera_publisher.py
-
-# Terminal 2: Start the line follower (will use test images)
-roslaunch ainex_line_follower line_follower_only.launch
-```
+- **ROS Melodic** (Ubuntu 18.04)
+- **Gazebo** (simulation environment)
+- **OpenCV** (cv2, cv_bridge)
+- **ainex_kinematics** (GaitManager for walking control)
+- **ainex_description** (robot URDF with camera)
+- **ainex_gazebo** (position controllers)
+- **gazebo_world** (line follower world with obstacles)
 
 ## Configuration
 
-Edit `config/line_follower_params.yaml` to adjust:
+### Walking Parameters (from Lesson 4 Tutorial)
 
-- **Image Processing**: Resolution and ROI regions
-- **Color Detection**: HSV thresholds for black line
-- **Control Parameters**: Turning angles, step sizes
-- **Gait Parameters**: Walking speed and stability
-
-### Key Parameters
+Located in `ainex_kinematics/config/walking_param_sim.yaml`:
 
 ```yaml
-# Image size for processing (smaller = faster)
+period_time: 1500         # Walking cycle period (ms)
+dsp_ratio: 0.3           # Double support phase ratio
+step_fb_ratio: 0.28      # Forward/backward step ratio
+y_swap_amplitude: 0.035  # Lateral sway (meters)
+pelvis_offset: 0.045     # Pelvis height offset
+```
+
+### Detection Parameters
+
+Located in `config/line_follower_params.yaml`:
+
+```yaml
+# Image processing
 image_process_size: [160, 120]
 
-# Black line detection (HSV color space)
+# Common ROI for line and obstacle detection
+common_roi: [0.3, 0.8, 0.1, 0.9]  # [y_start, y_end, x_start, x_end]
+
+# Color detection (HSV)
 lower_black: [0, 0, 0]
 upper_black: [180, 255, 50]
+lower_red_1: [0, 100, 100]
+upper_red_1: [10, 255, 255]
+lower_red_2: [160, 100, 100]
+upper_red_2: [180, 255, 255]
+lower_blue: [100, 100, 100]
+upper_blue: [130, 255, 255]
 
-# Control parameters
-yaw_range: [-8, 8]  # Turning angle range (degrees)
-x_max: 0.010        # Maximum forward step (meters)
+# Walking control
+max_turn_angle: 10.0     # Maximum turn angle (degrees)
+turn_threshold: 4.0      # Angle to switch from go to turn gait
+forward_speed: 0.05      # Forward speed straight (meters)
+turn_forward_speed: 0.008 # Forward speed when turning
 ```
 
 ## Topics
 
-### Subscribed Topics
-- `/camera/rgb/image_raw` (sensor_msgs/Image): Camera image input
+### Subscribed
+- `/camera/image_raw` (sensor_msgs/Image): Camera feed from Gazebo
 
-### Published Topics
-- `~debug_image` (sensor_msgs/Image): Processed image with detection visualization
-- `~line_detected` (std_msgs/Bool): Whether a line is currently detected
-
-### Joint Command Topics
-The node publishes to individual joint controllers:
-- `/l_hip_yaw_controller/command`
-- `/r_hip_yaw_controller/command`
-- (and other leg joints)
-
-## Parameters
-
-- `~image_topic` (string, default: "/camera/rgb/image_raw"): Camera topic to subscribe
-- `~control_rate` (int, default: 10): Control loop frequency in Hz
-- `~auto_start` (bool, default: true): Start line following automatically
+### Published
+- `/line_follower_node/debug_image` (sensor_msgs/Image): Annotated image with detections
+- `/robotis/walking/command` (std_msgs/String): Walking gait commands
+- `/robotis/walking/set_params` (op3_walking_module_msgs/WalkingParam): Walking parameters
 
 ## How It Works
 
-1. **Image Acquisition**: Subscribes to camera images from Gazebo
-2. **Preprocessing**: Resizes and converts image to HSV color space
-3. **Line Detection**: 
-   - Applies color thresholding to detect black pixels
-   - Processes three ROI regions (upper, center, lower)
-   - Finds contours and calculates line center position
-4. **Control Calculation**: 
-   - Compares line position to image center
-   - Calculates turning angle (yaw) based on offset
-   - Adjusts forward speed based on turning amount
-5. **Motion Execution**: Publishes joint commands to walk and turn
+### 1. Image Processing
+- Resizes camera image to 160x120 for faster processing
+- Converts from BGR to HSV color space
+- Extracts common ROI region: [0.3:0.8, 0.1:0.9] (60% vertical, 80% horizontal)
 
-## Differences from Real-World Version
+### 2. Line Detection
+- Applies HSV thresholding for black color (V < 50)
+- Finds contours and selects the largest
+- Calculates center X position and line angle
+- Draws white bounding box around detected line
 
-This simulation version has been simplified compared to the real-world implementation:
+### 3. Obstacle Detection
+- Detects red obstacles using two HSV ranges (0-10° and 160-180° hue)
+- Detects blue obstacles using single HSV range (100-130° hue)
+- Draws colored bounding boxes around each detected obstacle
+- Displays "Color: Red", "Color: Blue", or "Color: Red + Blue" text
 
-- **No Hardware SDK**: Removed dependencies on `ainex_sdk` and servo control
-- **Simplified Walking**: Uses basic joint control instead of full walking module
-- **No Motion Manager**: Direct joint commands instead of action sequences
-- **No Service Interface**: Simplified start/stop mechanism
+### 4. Walking Control
+- **When line detected**: Calculates turn angle from line position
+  - If angle > 4°: Uses `turn_gait` with 0.008m forward speed
+  - If angle ≤ 4°: Uses `go_gait` with 0.05m forward speed
+- **When line lost**: Continues executing last walking command (no stopping)
+- Uses GaitManager for smooth bipedal walking with parameters from walking_param_sim.yaml
+
+### 5. Visual Feedback
+- White box: Detected black line
+- Red boxes: Detected red obstacles (stairs)
+- Blue boxes: Detected blue obstacles (hurdles)
+- Text: "Color: Red/Blue/Red + Blue" (font size 0.4, minimal display)
+
+## World Configuration
+
+The `gazebo_world/worlds/line_follower.world` includes:
+
+- **Black line track**: Curved path for line following
+- **Red stairs**: Pose `[-1.96935, 2.02094, 0, 0, 0, -0.800000]`
+- **Blue hurdle**: Pose `[-1.15692, 1.20177, 0, 0, 0, 0.813093]`
+
+## Robot Spawn Configuration
+
+Launch file spawn parameters:
+
+```xml
+<arg name="x" default="0"/>
+<arg name="y" default="0"/>
+<arg name="z" default="0.25"/>
+<arg name="yaw" default="90"/>  <!-- 90 degrees -->
+```
+
+Joint initialization:
+```
+l_sho_roll: -1.403, l_el_yaw: -1.226
+r_sho_roll: 1.403, r_el_yaw: 1.226
+```
+
+## Algorithm Details
+
+### Reference Implementation Approach
+The walking logic is based on the Reference `combination_node.py`:
+
+```python
+def control_walking(self, line_data):
+    if line_data is None:
+        return  # Continue last command, don't stop
+    
+    # Process line data and send new command
+    self.gait_manager.process(line_data.x_move_amplitude,
+                              line_data.y_move_amplitude, 
+                              line_data.angle)
+```
+
+**Key insight**: Robot does NOT stop when line is temporarily lost—it continues with the last successful walking command for smooth navigation.
+
+### Speed Calculation
+```python
+if abs(angle) > 6.0:  # Sharp turn
+    forward_speed = 0.008  # Slow down
+else:  # Straight or gentle curve
+    forward_speed = 0.05   # Normal speed
+```
+
+Robot always moves forward, even when turning sharply, to maintain continuous progress along the path.
 
 ## Troubleshooting
 
-### No camera image
-- Check that Gazebo is running and the robot has a camera sensor
-- Verify the camera topic name: `rostopic list | grep camera`
-- Make sure the robot is spawned correctly
+### Robot not following line
+- Check image viewer: `Color detected? Bounding boxes shown?`
+- Verify camera topic: `rostopic hz /camera/image_raw`
+- Adjust HSV thresholds in `line_follower_params.yaml`
 
-### Robot not moving
-- Check joint controller status: `rostopic echo /joint_states`
-- Verify controllers are loaded: `rosservice call /controller_manager/list_controllers`
+### Robot oscillating or unstable
+- Walking parameters may need tuning for your system
+- Check Gazebo physics are not running too fast
+- Verify robot spawns correctly (z=0.25, not on ground)
 
-### Line not detected
-- View debug image: `rosrun image_view image_view image:=/line_follower/debug_image`
-- Adjust HSV thresholds in config file
-- Check lighting conditions in Gazebo world
+### No image viewer
+- Image viewer auto-launches after 8 seconds
+- Manual launch: `rosrun rqt_image_view rqt_image_view /line_follower_node/debug_image`
 
-## Future Enhancements
+### Colors not detected
+- Check lighting in Gazebo world
+- Verify obstacle models are loaded correctly
+- Adjust HSV ranges for red/blue in config file
 
-- Integration with full walking module from ainex_kinematics
-- Support for different line colors
-- Path planning for intersections
-- Obstacle avoidance
-- Performance metrics and logging
+## Performance Notes
+
+- **Control Rate**: 10 Hz (100ms cycle time)
+- **Image Resolution**: 160x120 (downsampled from camera for speed)
+- **Walking Period**: 1500ms (slower than real robot for simulation stability)
+- **ROI Coverage**: 60% vertical × 80% horizontal of image
 
 ## Credits
 
-Based on the visual_patrol package from the Ainex Reference implementation, adapted for Gazebo simulation.
+- Based on Reference `visual_patrol.py` and `combination_node.py`
+- Walking parameters from Lesson 4 Gazebo Simulation Tutorial
+- Adapted for Gazebo simulation with obstacle detection features
 
 ## License
 

@@ -27,8 +27,8 @@ include_directories(
 )
 
 catkin_install_python(PROGRAMS
-  scripts/line_follower_node.py
-  scripts/simple_camera_publisher.py
+  scripts/line_follower_node_v2.py
+  scripts/delayed_start.sh
   DESTINATION ${CATKIN_PACKAGE_BIN_DESTINATION}
 )
 
