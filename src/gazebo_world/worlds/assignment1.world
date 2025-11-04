@@ -21,7 +21,7 @@
       </spot>
     </light>
     <include>
-      <uri>model://line_path_ground_plane</uri>
+      <uri>model://assignment1</uri>
     </include>
     
     <!-- Stairs model -->
@@ -79,7 +79,7 @@
         <enable_wind>0</enable_wind>
         <kinematic>0</kinematic>
       </link>
-      <pose frame=''>-0.578685 0.920374 -0.000014 -0.000072 0.000001 0.750001</pose>
+      <pose frame=''>-0.068029 4.696250 -0.000014 -0.000072 0.00 0.00</pose>
     </model>
     
     <!-- Hurdle model -->
@@ -137,7 +137,7 @@
         <enable_wind>0</enable_wind>
         <kinematic>0</kinematic>
       </link>
-      <pose frame=''>-0.828600 0.733376 -0.000002 -0.000072 -0 -0.799978</pose>
+      <pose frame=''>-0.574273 4.606131 -0.000004 -0.000188 0.00 0.000252</pose>
     </model>
     
     <gravity>0 0 -9.8</gravity>
@@ -170,7 +170,7 @@
       <real_time>57 424484137</real_time>
       <wall_time>1721283474 713491349</wall_time>
       <iterations>56517</iterations>
-      <model name='line_path_ground_plane'>
+      <model name='assignment1'>
         <pose>0 0 0 0 -0 0</pose>
         <scale>1 1 1</scale>
         <link name='link'>
@@ -190,7 +190,7 @@
         <view_controller>orbit</view_controller>
         <projection_type>perspective</projection_type>
         <track_visual>
-          <name>line_follower</name>
+          <name>assignment1</name>
           <!-- <static>true</static> -->
           <min_dist>1</min_dist>
           <max_dist>2.5</max_dist>

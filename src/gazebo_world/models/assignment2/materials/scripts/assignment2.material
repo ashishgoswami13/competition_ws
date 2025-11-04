@@ -1,4 +1,4 @@
-material LinePathGroundPlane/Image
+material assignment1/Image
 {
     technique
     {
@@ -10,7 +10,7 @@ material LinePathGroundPlane/Image
 
         texture_unit
         {
-        texture ../textures/line.png
+        texture ../textures/assignment2.png
         tex_address_mode wrap
         filtering anisotropic
         max_anisotropy 16

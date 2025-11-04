@@ -1,6 +1,6 @@
 <?xml version="1.0"?>
 <sdf version="1.4">
-<model name="line_path_ground_plane">
+<model name="assignment3">
   <static>true</static>
     <link name="link">
       <collision name="collision">
@@ -29,8 +29,8 @@
         </geometry>
         <material>
           <script>
-            <uri>model://line_path_ground_plane/materials/scripts/line_path_ground_plane.material</uri>
-            <name>LinePathGroundPlane/Image</name>
+            <uri>model://assignment3/materials/scripts/assignment3.material</uri>
+            <name>assignment3/Image</name>
           </script>
           <ambient>1 1 1 1</ambient>
         </material>
